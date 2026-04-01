@@ -1,61 +1,67 @@
-import java.util.HashMap;
-import java.util.Map;
+import java.util.LinkedList;
+import java.util.Queue;
 
-class Room {
+/**
+ * BookingQueue handles incoming booking requests in FIFO order
+ */
+class BookingQueue {
 
-    private String type;
-    private int price;
-    private String amenities;
+    private Queue<Reservation> queue;
 
-    public Room(String type, int price, String amenities) {
-        this.type = type;
-        this.price = price;
-        this.amenities = amenities;
+    public BookingQueue() {
+        queue = new LinkedList<>();
     }
 
-    public String getType() {
-        return type;
+    // Add request
+    public void addRequest(Reservation reservation) {
+        queue.offer(reservation);
+        System.out.println("Request added for " + reservation.getGuestName() +
+                " (" + reservation.getRoomType() + ")");
     }
 
-    public int getPrice() {
-        return price;
+    // View next request (without removing)
+    public Reservation peekRequest() {
+        return queue.peek();
     }
 
-    public String getAmenities() {
-        return amenities;
+    // Remove next request (for future processing)
+    public Reservation getNextRequest() {
+        return queue.poll();
+    }
+
+    // Display all requests
+    public void displayQueue() {
+        System.out.println("\nBooking Request Queue:");
+
+        for (Reservation r : queue) {
+            System.out.println(r.getGuestName() + " → " + r.getRoomType());
+        }
+    }
+
+    public boolean isEmpty() {
+        return queue.isEmpty();
     }
 }
 
-class SearchService {
+/**
+ * Reservation represents a booking request
+ */
+class Reservation {
 
-    private RoomInventory inventory;
-    private Map<String, Room> roomData;
+    private String guestName;
+    private String roomType;
 
-    public SearchService(RoomInventory inventory, Map<String, Room> roomData) {
-        this.inventory = inventory;
-        this.roomData = roomData;
+    public Reservation(String guestName, String roomType) {
+        this.guestName = guestName;
+        this.roomType = roomType;
     }
 
-    public void searchAvailableRooms() {
+    public String getGuestName() {
+        return guestName;
+    }
 
-        System.out.println("\nAvailable Rooms:\n");
-
-        for (String roomType : roomData.keySet()) {
-
-            int available = inventory.getAvailability(roomType);
-
-            // Defensive check: only show available rooms
-            if (available > 0) {
-
-                Room room = roomData.get(roomType);
-
-                System.out.println("Type: " + room.getType());
-                System.out.println("Price: ₹" + room.getPrice());
-                System.out.println("Amenities: " + room.getAmenities());
-                System.out.println("Available: " + available);
-                System.out.println("------------------------");
-            }
-        }
+    public String getRoomType() {
+        return roomType;
     }
 }
 
@@ -66,20 +72,18 @@ public class BookMyStay {
 
     public static void main(String[] args) {
 
-        // Inventory (UC3)
-        RoomInventory inventory = new RoomInventory();
+        BookingQueue bookingQueue = new BookingQueue();
 
-        // Room details (Domain model)
-        Map<String, Room> roomData = new HashMap<>();
+        // Simulating booking requests (arrival order matters)
+        bookingQueue.addRequest(new Reservation("Alice", "Single"));
+        bookingQueue.addRequest(new Reservation("Bob", "Double"));
+        bookingQueue.addRequest(new Reservation("Charlie", "Suite"));
 
-        roomData.put("Single", new Room("Single", 2000, "WiFi, AC"));
-        roomData.put("Double", new Room("Double", 3500, "WiFi, AC, TV"));
-        roomData.put("Suite", new Room("Suite", 7000, "WiFi, AC, TV, Mini Bar"));
+        // Display queue
+        bookingQueue.displayQueue();
 
-        // Search Service (UC4)
-        SearchService searchService = new SearchService(inventory, roomData);
-
-        // Perform search (READ ONLY)
-        searchService.searchAvailableRooms();
+        // Peek first request (no removal)
+        System.out.println("\nNext request to process: " +
+                bookingQueue.peekRequest().getGuestName());
     }
 }
