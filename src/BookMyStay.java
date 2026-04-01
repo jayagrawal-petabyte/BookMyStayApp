@@ -1,111 +1,111 @@
 import java.util.*;
 
-/**
- * Handles booking cancellation and rollback
- */
-class CancellationService {
+public class BookMyStay {
 
-    private RoomInventory inventory;
-    private BookingHistory bookingHistory;
+    public static void main(String[] args) {
 
-    // roomType → allocated IDs (same as BookingService)
-    private Map<String, Set<String>> roomAllocations;
+        RoomInventory inventory = new RoomInventory();
+        BookingQueue queue = new BookingQueue();
+        BookingHistory history = new BookingHistory();
 
-    // Track released IDs (LIFO rollback)
-    private Stack<String> rollbackStack;
+        Set<String> validTypes = new HashSet<>();
+        validTypes.add("Single");
 
-    public CancellationService(RoomInventory inventory,
-            BookingHistory bookingHistory,
-            Map<String, Set<String>> roomAllocations) {
+        BookingValidator validator = new BookingValidator(validTypes);
 
-        this.inventory = inventory;
-        this.bookingHistory = bookingHistory;
-        this.roomAllocations = roomAllocations;
+        // 🔥 Only 1 room available → race condition test
+        inventory.updateAvailability("Single", 1);
 
-        rollbackStack = new Stack<>();
-    }
+        // Multiple requests for SAME room
+        queue.addRequest(new Reservation("Alice", "Single"));
+        queue.addRequest(new Reservation("Bob", "Single"));
+        queue.addRequest(new Reservation("Charlie", "Single"));
 
-    /**
-     * Cancel a booking
-     */
-    public void cancelBooking(String reservationId) {
+        BookingService service = new BookingService(inventory, queue, history, validator);
 
-        // Step 1: Validate existence
-        BookingRecord record = findBooking(reservationId);
+        // Create threads
+        Thread t1 = new Thread(new BookingTask(service), "Thread-1");
+        Thread t2 = new Thread(new BookingTask(service), "Thread-2");
+        Thread t3 = new Thread(new BookingTask(service), "Thread-3");
 
-        if (record == null) {
-            System.out.println("Cancellation ERROR → Reservation not found.");
-            return;
-        }
-
-        String roomType = record.getRoomType();
-
-        // Step 2: Validate allocation exists
-        if (!roomAllocations.containsKey(roomType) ||
-                !roomAllocations.get(roomType).contains(reservationId)) {
-
-            System.out.println("Cancellation ERROR → Already cancelled or invalid.");
-            return;
-        }
-
-        // Step 3: Rollback (controlled order)
-
-        // Remove from allocation
-        roomAllocations.get(roomType).remove(reservationId);
-
-        // Track rollback
-        rollbackStack.push(reservationId);
-
-        // Restore inventory
-        int current = inventory.getAvailability(roomType);
-        inventory.updateAvailability(roomType, current + 1);
-
-        // Update history (mark cancellation)
-        markCancelled(reservationId);
-
-        System.out.println("Booking CANCELLED → " + reservationId +
-                " (" + roomType + ")");
-    }
-
-    /**
-     * Find booking record
-     */
-    private BookingRecord findBooking(String reservationId) {
-
-        for (BookingRecord r : bookingHistory.getAllRecords()) {
-            if (r.getReservationId().equals(reservationId)) {
-                return r;
-            }
-        }
-        return null;
-    }
-
-    /**
-     * Mark booking as cancelled (simple approach)
-     */
-    private void markCancelled(String reservationId) {
-
-        System.out.println("Marked in history as cancelled: " + reservationId);
-    }
-
-    /**
-     * Show rollback stack
-     */
-    public void displayRollbackStack() {
-
-        System.out.println("\nRollback Stack (recent cancellations):");
-
-        for (String id : rollbackStack) {
-            System.out.println(id);
-        }
+        // Start threads
+        t1.start();
+        t2.start();
+        t3.start();
     }
 
 }
 
-    public Map<String, Set<String>> getRoomAllocations() {
-        return roomAllocations;
+    public void processSingleRequest() {
+
+        Reservation request;
+
+        // synchronized queue access
+        synchronized (bookingQueue) {
+            if (bookingQueue.isEmpty())
+                return;
+            request = bookingQueue.getNextRequest();
+        }
+
+        try {
+            validator.validate(request, inventory);
+
+            String roomType = request.getRoomType();
+            String guest = request.getGuestName();
+
+            // 🔥 CRITICAL SECTION (inventory lock)
+            synchronized (inventory) {
+
+                int available = inventory.getAvailability(roomType);
+
+                if (available <= 0) {
+                    System.out.println(Thread.currentThread().getName() +
+                            " → Booking failed for " + guest);
+                    return;
+                }
+
+                String roomId = generateUniqueRoomId(roomType);
+
+                allocatedRoomIds.add(roomId);
+
+                roomAllocations
+                        .computeIfAbsent(roomType, k -> new HashSet<>())
+                        .add(roomId);
+
+                inventory.updateAvailability(roomType, available - 1);
+
+                bookingHistory.addRecord(
+                        new BookingRecord(roomId, guest, roomType));
+
+                System.out.println(Thread.currentThread().getName() +
+                        " → CONFIRMED " + guest +
+                        " | Room: " + roomId);
+            }
+
+        } catch (Exception e) {
+            System.out.println("ERROR: " + e.getMessage());
+        }
     }
 
-public Map<String, Set<String>> getRoomAllocations() {
-    return roomAllocations;
+/**
+ * Represents a booking task executed by a thread
+ */
+class BookingTask implements Runnable {
+
+    private BookingService bookingService;
+
+    public BookingTask(BookingService bookingService) {
+        this.bookingService = bookingService;
+    }
+
+    @Override
+    public void run() {
+        bookingService.processSingleRequest();
+    }
+}
+
+    synchronized(inventory)
+
+    {
+    // check + allocate + update
 }
